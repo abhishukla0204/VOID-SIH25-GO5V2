@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import { apiRequest } from '../config/api'
 import {
   Box,
   Card,

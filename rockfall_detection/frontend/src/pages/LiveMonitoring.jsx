@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { getApiUrl, apiRequest } from '../config/api'
+// import { getApiUrl, apiRequest } from '../config/api' // Commented for frontend-only showcase
 import {
   Grid,
   Card,
@@ -31,156 +31,135 @@ import {
   ZoomIn as ZoomInIcon,
   ZoomOut as ZoomOutIcon,
   RotateLeft as RotateLeftIcon,
-  RotateRight as RotateRightIcon
+  RotateRight as RotateRightIcon,
+  PowerSettingsNew as PowerIcon
 } from '@mui/icons-material'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const LiveMonitoring = () => {
-  // Camera feed states
+  // Camera feed states with Cloudinary video URLs from environment
   const [cameraFeeds, setCameraFeeds] = useState({
     east: {
       id: 'camera-east',
       name: 'East Camera',
       status: 'active',
-      url: '',  // Will be resolved async
+      videoUrl: import.meta.env.VITE_CAMERA_EAST_URL || 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167914/1_znxt5x.mp4',
       lastUpdate: new Date(),
       resolution: '1920x1080',
-      fps: 30,
-      detections: 0,
-      recording: false
+      fps: import.meta.env.VITE_CAMERA_REFRESH_RATE || 30,
+      detections: 2,
+      recording: false,
+      online: true
     },
     west: {
       id: 'camera-west',
       name: 'West Camera',
       status: 'active',
-      url: '',  // Will be resolved async
+      videoUrl: import.meta.env.VITE_CAMERA_WEST_URL || 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167915/2_lrgtxq.mp4',
       lastUpdate: new Date(),
       resolution: '1920x1080',
-      fps: 30,
-      detections: 0,
-      recording: false
+      fps: import.meta.env.VITE_CAMERA_REFRESH_RATE || 30,
+      detections: 1,
+      recording: false,
+      online: true
     },
     north: {
       id: 'camera-north',
       name: 'North Camera',
       status: 'active',
-      url: '',  // Will be resolved async
+      videoUrl: import.meta.env.VITE_CAMERA_NORTH_URL || 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167915/3_gk37sc.mp4',
       lastUpdate: new Date(),
       resolution: '1920x1080',
-      fps: 30,
-      detections: 2,
-      recording: true
+      fps: import.meta.env.VITE_CAMERA_REFRESH_RATE || 30,
+      detections: 3,
+      recording: true,
+      online: true
     },
     south: {
       id: 'camera-south',
       name: 'South Camera',
-      status: 'maintenance',
-      url: '',  // Will be resolved async
+      status: 'offline',
+      videoUrl: 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167914/1_znxt5x.mp4', // Backup video
       lastUpdate: new Date(Date.now() - 300000), // 5 minutes ago
       resolution: '1920x1080',
       fps: 0,
       detections: 0,
-      recording: false
+      recording: false,
+      online: false
     }
   })
 
-  // Resolve camera URLs on component mount
-  useEffect(() => {
-    const resolveCameraUrls = async () => {
-      try {
-        const urls = [
-          getApiUrl('/api/camera/east/stream'),
-          getApiUrl('/api/camera/west/stream'),
-          getApiUrl('/api/camera/north/stream'),
-          getApiUrl('/api/camera/south/stream')
-        ]
-        
-        setCameraFeeds(prev => ({
-          east: { ...prev.east, url: urls[0] },
-          west: { ...prev.west, url: urls[1] },
-          north: { ...prev.north, url: urls[2] },
-          south: { ...prev.south, url: urls[3] }
-        }))
-      } catch (error) {
-        console.error('Failed to resolve camera URLs:', error)
-      }
-    }
-    
-    resolveCameraUrls()
-  }, [])
-
   const [selectedCamera, setSelectedCamera] = useState(null)
-  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [autoRefresh, setAutoRefresh] = useState(false) // Disabled by default for better performance
   const [fullscreenCamera, setFullscreenCamera] = useState(null)
   const [systemStats, setSystemStats] = useState({
     totalCameras: 4,
     activeCameras: 3,
-    totalDetections: 2,
+    totalDetections: 6, // Sum of all detections
     storageUsed: '45.2 GB',
     uptime: '12h 34m'
   })
 
   const videoRefs = useRef({})
 
-  // Simulate camera feed updates
+  // Toggle camera online/offline status
+  const toggleCameraStatus = (direction) => {
+    setCameraFeeds(prev => ({
+      ...prev,
+      [direction]: {
+        ...prev[direction],
+        online: !prev[direction].online,
+        status: prev[direction].online ? 'offline' : 'active',
+        fps: prev[direction].online ? 0 : 30,
+        lastUpdate: new Date()
+      }
+    }))
+  }
+
+  // Simulate camera feed updates (for demo purposes)
   useEffect(() => {
     if (!autoRefresh) return
 
-    const fetchCameraStatus = async () => {
-      try {
-        const data = await apiRequest('/api/camera/status')
-        
-        // Update camera feeds with real data from backend
-        const directions = Object.keys(data.cameras)
-        const feedUrls = directions.map(direction => getApiUrl(`/api/camera/${direction}/feed`))
-        
-        setCameraFeeds(prev => {
-          const updated = { ...prev }
-          directions.forEach((direction, index) => {
-            if (updated[direction]) {
-              const camera = data.cameras[direction]
+    const updateCameraFeeds = () => {
+      // Simulate random detection updates for active cameras
+      setCameraFeeds(prev => {
+        const updated = { ...prev }
+        Object.keys(updated).forEach(direction => {
+          if (updated[direction].online && updated[direction].status === 'active') {
+            // Randomly update detections for demonstration (less frequently)
+            if (Math.random() > 0.9) { // Reduced from 0.8 to 0.9 for less frequent updates
               updated[direction] = {
                 ...updated[direction],
-                id: camera.id,
-                name: camera.name,
-                status: camera.status,
-                resolution: camera.resolution,
-                fps: camera.fps,
-                recording: camera.recording,
-                streaming: camera.streaming || false,
-                duration: camera.duration || 0,
-                detections: updated[direction].detections, // Keep existing detection count for UI
-                lastUpdate: new Date(camera.last_detection || new Date()),
-                url: feedUrls[index]
+                detections: Math.max(0, updated[direction].detections + (Math.random() > 0.5 ? 1 : -1)),
+                lastUpdate: new Date()
               }
             }
-          })
-          return updated
+          }
         })
-
-        // Update system stats
+        
+        // Update system stats within the same state update
+        const activeCameras = Object.values(updated).filter(cam => cam.online).length
+        const totalDetections = Object.values(updated).reduce((sum, cam) => sum + cam.detections, 0)
+        
         setSystemStats(prev => ({
           ...prev,
-          totalCameras: data.system.total_cameras,
-          activeCameras: data.system.active_cameras,
-          storageUsed: data.system.storage_used,
-          uptime: data.system.uptime
+          activeCameras,
+          totalDetections
         }))
-      } catch (error) {
-        console.error('Failed to fetch camera status:', error)
-      }
+        
+        return updated
+      })
     }
 
-    fetchCameraStatus()
-    const interval = setInterval(fetchCameraStatus, 3000)
+    const interval = setInterval(updateCameraFeeds, 10000) // Increased from 5s to 10s
 
     return () => clearInterval(interval)
-  }, [autoRefresh])
+  }, [autoRefresh]) // Removed cameraFeeds dependency to prevent cascading updates
 
   const getStatusColor = (status) => {
     switch (status) {
       case 'active': return '#4CAF50'
-      case 'inactive': return '#9E9E9E'
+      case 'offline': return '#9E9E9E'
       case 'maintenance': return '#FF9800'
       case 'error': return '#F44336'
       default: return '#9E9E9E'
@@ -190,35 +169,34 @@ const LiveMonitoring = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'active': return <CheckCircleIcon sx={{ color: '#4CAF50' }} />
-      case 'inactive': return <VideocamOffIcon sx={{ color: '#9E9E9E' }} />
+      case 'offline': return <VideocamOffIcon sx={{ color: '#9E9E9E' }} />
       case 'maintenance': return <WarningIcon sx={{ color: '#FF9800' }} />
       case 'error': return <ErrorIcon sx={{ color: '#F44336' }} />
       default: return <VideocamOffIcon sx={{ color: '#9E9E9E' }} />
     }
   }
 
-  const handleCameraControl = async (direction, action) => {
-    try {
-      const result = await apiRequest(`/api/camera/${direction}/control`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ action })
-      })
-      
-      console.log(`Camera ${direction}: ${action} - ${result.message}`)
-      // Optionally show a success notification
-    } catch (error) {
-      console.error(`Camera control failed:`, error)
+  const handleCameraControl = (direction, action) => {
+    console.log(`Camera ${direction}: ${action} action performed`)
+    // Simulate control actions for showcase
+    if (action === 'start' || action === 'stop') {
+      // Already handled by toggle function
+    } else if (action === 'refresh') {
+      setCameraFeeds(prev => ({
+        ...prev,
+        [direction]: {
+          ...prev[direction],
+          lastUpdate: new Date()
+        }
+      }))
     }
   }
 
-  const toggleRecording = async (direction) => {
+  const toggleRecording = (direction) => {
     const currentlyRecording = cameraFeeds[direction].recording
     const action = currentlyRecording ? 'stop_record' : 'record'
     
-    await handleCameraControl(direction, action)
+    handleCameraControl(direction, action)
     
     setCameraFeeds(prev => ({
       ...prev,
@@ -229,8 +207,8 @@ const LiveMonitoring = () => {
     }))
   }
 
-  const refreshCamera = async (direction) => {
-    await handleCameraControl(direction, 'refresh')
+  const refreshCamera = (direction) => {
+    handleCameraControl(direction, 'refresh')
     
     setCameraFeeds(prev => ({
       ...prev,
@@ -242,6 +220,8 @@ const LiveMonitoring = () => {
   }
 
   const enterFullscreen = (direction) => {
+    console.log(`Entering fullscreen for ${direction} camera`)
+    console.log('Camera data:', cameraFeeds[direction])
     setFullscreenCamera(direction)
   }
 
@@ -301,56 +281,30 @@ const LiveMonitoring = () => {
             overflow: 'hidden',
             cursor: camera.status === 'active' ? 'pointer' : 'default'
           }}
-          onClick={() => camera.status === 'active' && setSelectedCamera(direction)}
         >
-          {camera.status === 'active' ? (
+          {camera.online && camera.status === 'active' ? (
             <>
               {/* Real video feed */}
-              <img
-                src={camera.url}
-                alt={`${direction} camera feed`}
+              <video
+                src={camera.videoUrl}
                 style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
                   display: 'block'
                 }}
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="metadata"
                 onError={(e) => {
-                  // Fallback to simulated feed if video fails to load
-                  e.target.style.display = 'none'
-                  e.target.nextSibling.style.display = 'flex'
+                  console.error(`Failed to load video for ${direction}:`, e)
                 }}
-                onLoad={(e) => {
-                  // Hide fallback when video loads successfully
-                  e.target.style.display = 'block'
-                  if (e.target.nextSibling) {
-                    e.target.nextSibling.style.display = 'none'
-                  }
+                onLoadStart={() => {
+                  console.log(`Video loading started for ${direction}`)
                 }}
               />
-              
-              {/* Fallback simulated feed */}
-              <Box
-                sx={{
-                  width: '100%',
-                  height: '100%',
-                  background: `linear-gradient(45deg, 
-                    ${direction === 'east' ? '#1e3a8a, #3b82f6' : 
-                      direction === 'west' ? '#7c2d12, #ea580c' :
-                      direction === 'north' ? '#14532d, #22c55e' :
-                      '#7c2d12, #dc2626'})`,
-                  display: 'none',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0
-                }}
-              >
-                <Typography variant="h6" sx={{ color: 'white', opacity: 0.8 }}>
-                  🎥 Live Feed - {direction.toUpperCase()}
-                </Typography>
-              </Box>
                 
               {/* Detection overlays */}
               {camera.detections > 0 && (
@@ -457,8 +411,25 @@ const LiveMonitoring = () => {
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <IconButton 
             size="small" 
+            onClick={() => toggleCameraStatus(direction)}
+            sx={{ 
+              color: camera.online ? '#10b981' : '#ef4444',
+              '&:hover': { 
+                color: camera.online ? '#059669' : '#dc2626',
+                backgroundColor: camera.online ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'
+              },
+              border: `1px solid ${camera.online ? '#10b981' : '#ef4444'}`,
+              borderRadius: 1
+            }}
+            title={camera.online ? 'Turn camera offline' : 'Turn camera online'}
+          >
+            <PowerIcon fontSize="small" />
+          </IconButton>
+          <IconButton 
+            size="small" 
             onClick={() => refreshCamera(direction)}
             sx={{ color: '#64748b', '&:hover': { color: '#3b82f6' } }}
+            disabled={!camera.online}
           >
             <RefreshIcon fontSize="small" />
           </IconButton>
@@ -466,13 +437,14 @@ const LiveMonitoring = () => {
             size="small" 
             onClick={() => toggleRecording(direction)}
             sx={{ color: camera.recording ? '#f44336' : '#64748b' }}
+            disabled={!camera.online}
           >
             <RecordIcon fontSize="small" />
           </IconButton>
           <IconButton 
             size="small" 
             onClick={() => enterFullscreen(direction)}
-            disabled={camera.status !== 'active'}
+            disabled={!camera.online || camera.status !== 'active'}
             sx={{ color: '#64748b', '&:hover': { color: '#3b82f6' } }}
           >
             <FullscreenIcon fontSize="small" />
@@ -480,6 +452,7 @@ const LiveMonitoring = () => {
           <IconButton 
             size="small" 
             sx={{ color: '#64748b', '&:hover': { color: '#3b82f6' } }}
+            disabled={!camera.online}
           >
             <SettingsIcon fontSize="small" />
           </IconButton>
@@ -588,7 +561,7 @@ const LiveMonitoring = () => {
 
       {/* Fullscreen Modal */}
       <AnimatePresence>
-        {fullscreenCamera && (
+        {fullscreenCamera && cameraFeeds[fullscreenCamera]?.online && cameraFeeds[fullscreenCamera]?.status === 'active' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -638,21 +611,28 @@ const LiveMonitoring = () => {
                       overflow: 'hidden'
                     }}
                   >
-                    <img
-                      src={cameraFeeds[fullscreenCamera]?.url || ''}
-                      alt={`${fullscreenCamera} camera fullscreen feed`}
+                    <video
+                      src={cameraFeeds[fullscreenCamera]?.videoUrl || ''}
                       style={{
                         width: '100%',
                         height: '100%',
                         objectFit: 'contain',
                         display: 'block'
                       }}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      controls
                       onError={(e) => {
+                        console.error(`Failed to load fullscreen video for ${fullscreenCamera}:`, e)
                         // Fallback to placeholder if video fails to load
                         e.target.style.display = 'none'
-                        e.target.nextSibling.style.display = 'flex'
+                        if (e.target.nextSibling) {
+                          e.target.nextSibling.style.display = 'flex'
+                        }
                       }}
-                      onLoad={(e) => {
+                      onLoadedData={(e) => {
                         // Hide fallback when video loads successfully
                         e.target.style.display = 'block'
                         if (e.target.nextSibling) {

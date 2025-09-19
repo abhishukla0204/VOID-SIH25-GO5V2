@@ -15,10 +15,10 @@ import {
   PlayArrow as PlayIcon
 } from '@mui/icons-material'
 import { motion } from 'framer-motion'
-import { apiRequest, getApiUrl } from '../config/api'
+// import { apiRequest, getApiUrl } from '../config/api' // Commented for frontend-only showcase
 
 const Detection = () => {
-  const [previewUrl, setPreviewUrl] = useState(null)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [detectionResults, setDetectionResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -29,74 +29,96 @@ const Detection = () => {
     naturalWidth: 0, 
     naturalHeight: 0 
   })
-  const [demoLoaded, setDemoLoaded] = useState(false)
   
   const imageRef = useRef(null)
 
+  // Predefined test images with mock detection results
+  const testImages = [
+    {
+      src: '/R-102-_jpg.rf.0adff2cdd3e01a5d9b561ae772866bd5.jpg',
+      name: 'Mountain Cliff Face',
+      detections: [
+        { confidence: 0.89, bbox: [120, 85, 280, 195], class: "rock", class_id: 0, area: 17600 },
+        { confidence: 0.76, bbox: [320, 150, 450, 240], class: "rock", class_id: 0, area: 11700 },
+        { confidence: 0.82, bbox: [500, 120, 620, 210], class: "rock", class_id: 0, area: 10800 }
+      ]
+    },
+    {
+      src: '/R-127-_jpg.rf.5432d465335be46c18f57ad2ea2ffe6d.jpg',
+      name: 'Rocky Slope Analysis',
+      detections: [
+        { confidence: 0.91, bbox: [95, 110, 235, 220], class: "rock", class_id: 0, area: 15400 },
+        { confidence: 0.85, bbox: [280, 180, 390, 270], class: "rock", class_id: 0, area: 9900 },
+        { confidence: 0.73, bbox: [420, 90, 520, 160], class: "rock", class_id: 0, area: 7000 },
+        { confidence: 0.88, bbox: [150, 280, 260, 360], class: "rock", class_id: 0, area: 8800 }
+      ]
+    },
+    {
+      src: '/R-151-_jpg.rf.716234f08e49fbb7ad121b6d11df8356.jpg',
+      name: 'Quarry Wall Survey',
+      detections: [
+        { confidence: 0.94, bbox: [180, 75, 340, 185], class: "rock", class_id: 0, area: 17600 },
+        { confidence: 0.79, bbox: [380, 160, 480, 240], class: "rock", class_id: 0, area: 8000 }
+      ]
+    },
+    {
+      src: '/R-157-_jpg.rf.390fdc7bc6219d3d1f4ef8b49f994ce9.jpg',
+      name: 'Mining Site Assessment',
+      detections: [
+        { confidence: 0.87, bbox: [110, 95, 250, 185], class: "rock", class_id: 0, area: 12600 },
+        { confidence: 0.81, bbox: [300, 140, 420, 230], class: "rock", class_id: 0, area: 10800 },
+        { confidence: 0.75, bbox: [450, 110, 550, 190], class: "rock", class_id: 0, area: 8000 },
+        { confidence: 0.83, bbox: [200, 250, 320, 340], class: "rock", class_id: 0, area: 10800 },
+        { confidence: 0.78, bbox: [360, 280, 460, 360], class: "rock", class_id: 0, area: 8000 }
+      ]
+    }
+  ]
+
   // Load demo detection on component mount
   useEffect(() => {
-    if (!demoLoaded) {
-      loadDemoDetection()
-    }
-  }, [])
+    loadStaticDetection()
+  }, [selectedImageIndex])
 
-  const loadDemoDetection = async () => {
-    if (demoLoaded) {
-      console.log('� Demo already loaded, skipping...')
-      return
-    }
-    
-    console.log('�🔍 Loading demo detection...')
-    setDemoLoaded(true)
+  const loadStaticDetection = () => {
+    console.log(`🔍 Loading static detection for image ${selectedImageIndex}...`)
+    setLoading(true)
+    setError(null)
     
     try {
-      // Try to load default test image from backend
-      console.log('📸 Fetching test image from /api/test-image')
-      const imageUrl = getApiUrl('/api/test-image')
-      const imageResponse = await fetch(imageUrl)
-      console.log('📸 Image response status:', imageResponse.status)
+      const currentImage = testImages[selectedImageIndex]
       
-      if (imageResponse.ok) {
-        const imageBlob = await imageResponse.blob()
-        const imageObjectUrl = URL.createObjectURL(imageBlob)
-        console.log('📸 Test image loaded successfully:', imageObjectUrl)
+      // Simulate processing delay for showcase
+      setTimeout(() => {
+        const mockDetectionResults = {
+          detections: currentImage.detections,
+          total_detections: currentImage.detections.length,
+          confidence_threshold: 0.5,
+          processing_time_ms: Math.random() * 300 + 150, // 150-450ms
+          image_dimensions: { width: 640, height: 480 }, // Mock dimensions
+          timestamp: new Date().toISOString()
+        }
         
-        // Get detection results for the test image
-        console.log('🎯 Fetching detection results from /api/test-image/detect')
-        const detectionResults = await apiRequest('/api/test-image/detect?confidence_threshold=0.5')
-        console.log('🎯 Detection results:', detectionResults)
-          setShowDemo(true)
-        setDetectionResults(detectionResults)
-        setPreviewUrl(imageObjectUrl)
-        console.log('✅ Demo detection loaded successfully!')
-        return
-      } else {
-        console.error('❌ Image API failed:', imageResponse.statusText)
-      }
-      
-      // Fallback to old demo if new endpoints aren't available
-      console.log('🔄 Trying fallback demo...')
-      const response = await fetch('/demo_detection_results.json')
-      if (response.ok) {
-        const demoResults = await response.json()
+        console.log(`✅ Static detection loaded:`, mockDetectionResults)
+        setDetectionResults(mockDetectionResults)
         setShowDemo(true)
-        setPreviewUrl('/demo_detection.jpg')
-        setDetectionResults(demoResults)
-        console.log('✅ Fallback demo loaded')
-      } else {
-        console.log('❌ Fallback demo not available')
-      }
+        setLoading(false)
+      }, 600) // Simulate processing time
+      
     } catch (error) {
-      console.error('❌ Demo detection error:', error)
-      setDemoLoaded(false) // Reset flag on error so it can be retried
+      console.error('❌ Static detection error:', error)
+      setError('Failed to load detection results')
+      setLoading(false)
     }
   }
 
   const tryDemoDetection = () => {
-    setShowDemo(true)
-    setDemoLoaded(false) // Reset flag to allow reload
-    loadDemoDetection()
+    loadStaticDetection()
     setError(null)
+  }
+
+  const switchToNextImage = () => {
+    const nextIndex = (selectedImageIndex + 1) % testImages.length
+    setSelectedImageIndex(nextIndex)
   }
 
   const handleImageLoad = () => {
@@ -377,11 +399,25 @@ const Detection = () => {
               </Paper>
               
               {/* Preview */}
-              {previewUrl && (
+              {showDemo && (
                 <Box sx={{ mt: 3 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-                    🎯 Live Drone Feed with AI Detection
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      🎯 AI Rock Detection - {testImages[selectedImageIndex].name}
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={switchToNextImage}
+                      sx={{
+                        borderColor: '#10b981',
+                        color: '#10b981',
+                        '&:hover': { borderColor: '#059669', backgroundColor: 'rgba(16, 185, 129, 0.1)' }
+                      }}
+                    >
+                      Next Image ({selectedImageIndex + 1}/{testImages.length})
+                    </Button>
+                  </Box>
                   
                   <Box sx={{ 
                     position: 'relative',
@@ -391,8 +427,8 @@ const Detection = () => {
                   }}>
                     <img
                       ref={imageRef}
-                      src={previewUrl}
-                      alt="Demo Detection"
+                      src={testImages[selectedImageIndex].src}
+                      alt={testImages[selectedImageIndex].name}
                       onLoad={handleImageLoad}
                       style={{
                         width: '100%',
@@ -461,7 +497,7 @@ const Detection = () => {
                 </Box>
               )}
               
-              {!previewUrl && (
+              {!showDemo && !detectionResults && (
                 <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
                   <Button
                     variant="contained"

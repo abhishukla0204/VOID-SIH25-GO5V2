@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import config, { apiRequest, getCurrentBackendInfo } from './config/api'
 import { 
   AppBar, 
   Toolbar, 
@@ -18,7 +17,12 @@ import {
   Badge,
   Chip,
   useMediaQuery,
-  useTheme
+  useTheme,
+  Popover,
+  Paper,
+  Card,
+  CardContent,
+  Button
 } from '@mui/material'
 import {
   Dashboard as DashboardIcon,
@@ -30,7 +34,8 @@ import {
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
   Videocam as VideocamIcon,
-  Terrain as TerrainIcon
+  Terrain as TerrainIcon,
+  Close as CloseIcon
 } from '@mui/icons-material'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -43,9 +48,6 @@ import Settings from './pages/Settings'
 import LiveMonitoring from './pages/LiveMonitoring'
 import DEMAnalysis from './pages/DEMAnalysis'
 
-// WebSocket hook for real-time updates
-import useWebSocket from './hooks/useWebSocket'
-
 const drawerWidth = 280
 
 function App() {
@@ -56,16 +58,124 @@ function App() {
     models_loaded: {},
     active_connections: 0
   })
+  const [highRiskCount, setHighRiskCount] = useState(0)
+  const [riskAlerts, setRiskAlerts] = useState([])
+  const [notificationAnchor, setNotificationAnchor] = useState(null)
+  const [currentRiskData, setCurrentRiskData] = useState({
+    currentRisk: 0,
+    riskLevel: 'LOW',
+    riskScore: 0,
+    shouldTriggerNotification: false
+  })
   
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   
-  // WebSocket connection for real-time updates
-  const { connectionStatus, lastMessage, currentUrl, reconnect, isConnected } = useWebSocket('/ws')
+  // Static connection status for showcase - no WebSocket needed
+  const connectionStatus = 'Connected'
+  const isConnected = true
+  
+  // Simulate high risk scenarios for showcase using current risk data
+  useEffect(() => {
+    const simulateRiskAlerts = () => {
+      // Only trigger notifications when shouldTriggerNotification is true
+      if (!currentRiskData.shouldTriggerNotification) {
+        return
+      }
+      
+      const scenarios = [
+        { location: 'North Face', type: 'Slope Instability' },
+        { location: 'East Ridge', type: 'Heavy Rainfall' },
+        { location: 'Mining Zone A', type: 'Seismic Activity' },
+        { location: 'South Wall', type: 'Freeze-Thaw Cycles' }
+      ]
+      
+      const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)]
+      
+      // Use actual risk data from Dashboard
+      const riskScore = currentRiskData.riskScore
+      const riskLevel = currentRiskData.riskLevel
+      const currentRisk = currentRiskData.currentRisk
+      
+      randomScenario.riskScore = riskScore
+      randomScenario.riskLevel = riskLevel
+      randomScenario.currentRisk = currentRisk
+      randomScenario.timestamp = new Date()
+      randomScenario.id = Date.now()
+      
+      // Add to alerts list (keep last 10)
+      setHighRiskCount(prev => prev + 1)
+      setRiskAlerts(prev => [randomScenario, ...prev.slice(0, 9)])
+      
+      // Show combined notification with dismiss option
+      toast((t) => (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', maxWidth: '400px' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#dc2626' }}>
+              🚨 {riskLevel} RISK ALERT
+            </div>
+            <div style={{ marginBottom: '8px', fontSize: '14px' }}>
+              <strong>{randomScenario.location}</strong> - Risk: {currentRisk.toFixed(1)}%
+              <br />Type: {randomScenario.type}
+            </div>
+            <div style={{ fontSize: '12px', color: '#6b7280', borderTop: '1px solid #e5e7eb', paddingTop: '6px' }}>
+              📧 Email sent to safety officers<br />
+              📱 SMS alerts dispatched to emergency team
+            </div>
+          </div>
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '18px',
+              cursor: 'pointer',
+              color: '#6b7280',
+              padding: '0',
+              lineHeight: '1'
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ), {
+        duration: 8000,
+        style: {
+          background: '#fef2f2',
+          border: '1px solid #fecaca',
+          color: '#374151'
+        }
+      })
+    }
+    
+    // Only simulate alerts when risk data indicates high risk
+    if (currentRiskData.shouldTriggerNotification) {
+      // Trigger notification immediately
+      simulateRiskAlerts()
+    }
+  }, [currentRiskData.shouldTriggerNotification, currentRiskData.currentRisk]) // Trigger when notification flag changes
   
   // Handle drawer toggle
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
+  }
+  
+  // Handle notification panel
+  const handleNotificationClick = (event) => {
+    setNotificationAnchor(event.currentTarget)
+  }
+  
+  const handleNotificationClose = () => {
+    setNotificationAnchor(null)
+  }
+  
+  const removeNotification = (notificationId) => {
+    setRiskAlerts(prev => prev.filter(alert => alert.id !== notificationId))
+  }
+  
+  const clearAllNotifications = () => {
+    setRiskAlerts([])
+    setHighRiskCount(0)
   }
   
   // Navigation items
@@ -108,61 +218,21 @@ function App() {
     }
   ]
   
-  // Fetch system status
+  // Mock system status for showcase (instead of fetching from backend)
   useEffect(() => {
-    const fetchSystemStatus = async () => {
-      try {
-        const data = await apiRequest('/api/status')
-        console.log('🔄 System status received:', data)
-        console.log('📊 Models loaded:', data.models_loaded)
-        setSystemStatus(data)
-      } catch (error) {
-        console.error('Failed to fetch system status:', error)
-        // Don't show toast error for status checks as they happen frequently
-      }
-    }
-    
-    fetchSystemStatus()
-    const interval = setInterval(fetchSystemStatus, 30000) // Update every 30s
-    
-    return () => clearInterval(interval)
+    // Set static operational status for showcase
+    setSystemStatus({
+      status: 'operational',
+      models_loaded: {
+        yolo_detector: true,
+        risk_analyzer: true,
+        seismic_monitor: true,
+        weather_predictor: true,
+        stability_assessor: true
+      },
+      active_connections: 5
+    })
   }, [])
-  
-  // Handle WebSocket messages
-  useEffect(() => {
-    if (lastMessage) {
-      try {
-        const data = JSON.parse(lastMessage)
-        
-        switch (data.type) {
-          case 'risk_update':
-            if (data.data.risk_level === 'HIGH') {
-              toast.error(`🚨 HIGH RISK DETECTED: ${data.data.risk_score.toFixed(3)}`, {
-                duration: 8000,
-              })
-            }
-            break
-            
-          case 'detection_update':
-            if (data.data.total_detections > 0) {
-              toast.success(`🏔️ Detected ${data.data.total_detections} rocks`, {
-                duration: 4000,
-              })
-            }
-            break
-            
-          case 'heartbeat':
-            // Connection is alive
-            break
-            
-          default:
-            console.log('Unknown message type:', data.type)
-        }
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
-      }
-    }
-  }, [lastMessage])
   
   // Get status color
   const getStatusColor = (status) => {
@@ -269,7 +339,7 @@ function App() {
           v1.0.0 • Models Ready
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          {Object.values(systemStatus.models_loaded || {}).filter(Boolean).length} / {Object.keys(systemStatus.models_loaded || {}).length} models loaded
+          5 / 5 models loaded
         </Typography>
       </Box>
     </Box>
@@ -280,7 +350,8 @@ function App() {
     const pageProps = {
       systemStatus,
       connectionStatus,
-      lastMessage
+      highRiskCount,
+      onRiskDataUpdate: setCurrentRiskData
     }
     
     switch (currentPage) {
@@ -327,9 +398,26 @@ function App() {
             {navigationItems.find(item => item.path === currentPage)?.text || 'Dashboard'}
           </Typography>
           
-          <IconButton color="inherit" sx={{ mr: 1 }}>
-            <Badge badgeContent={systemStatus.active_connections} color="secondary">
-              <NotificationsIcon />
+          <IconButton 
+            color="inherit" 
+            sx={{ mr: 1 }}
+            onClick={handleNotificationClick}
+          >
+            <Badge 
+              badgeContent={highRiskCount} 
+              color="error"
+              max={99}
+              sx={{
+                '& .MuiBadge-badge': {
+                  backgroundColor: highRiskCount > 0 ? '#ef4444' : 'transparent',
+                  animation: highRiskCount > 0 ? 'pulse 2s infinite' : 'none'
+                }
+              }}
+            >
+              <NotificationsIcon sx={{ 
+                color: highRiskCount > 0 ? '#fbbf24' : 'inherit',
+                filter: highRiskCount > 0 ? 'drop-shadow(0 0 8px rgba(251, 191, 36, 0.6))' : 'none'
+              }} />
             </Badge>
           </IconButton>
           
@@ -346,6 +434,92 @@ function App() {
           />
         </Toolbar>
       </AppBar>
+
+      {/* Notifications Panel */}
+      <Popover
+        open={Boolean(notificationAnchor)}
+        anchorEl={notificationAnchor}
+        onClose={handleNotificationClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <Paper sx={{ width: 400, maxHeight: 500, overflow: 'auto' }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Risk Notifications ({riskAlerts.length})</Typography>
+            {riskAlerts.length > 0 && (
+              <Button size="small" onClick={clearAllNotifications} color="error">
+                Clear All
+              </Button>
+            )}
+          </Box>
+          
+          {riskAlerts.length === 0 ? (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                No notifications yet
+              </Typography>
+            </Box>
+          ) : (
+            <List sx={{ p: 0 }}>
+              {riskAlerts.map((alert, index) => (
+                <motion.div
+                  key={alert.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <ListItem 
+                    sx={{ 
+                      borderBottom: index < riskAlerts.length - 1 ? '1px solid #f0f0f0' : 'none',
+                      '&:hover': { 
+                        backgroundColor: '#f5f5f5',
+                        '& .MuiTypography-root': {
+                          color: 'inherit !important'
+                        },
+                        '& .MuiChip-root': {
+                          opacity: 1
+                        }
+                      }
+                    }}
+                  >
+                    <Box sx={{ flex: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Chip 
+                          label={alert.riskLevel} 
+                          size="small" 
+                          color={alert.riskLevel === 'HIGH' ? 'error' : 'warning'}
+                        />
+                        <Typography variant="caption" sx={{ color: '#888888' }}>
+                          {alert.timestamp.toLocaleTimeString()}
+                        </Typography>
+                      </Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1a1a1a' }}>
+                        {alert.location}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#666666' }}>
+                        Risk: {(alert.riskScore * 100).toFixed(1)}% | {alert.type}
+                      </Typography>
+                    </Box>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => removeNotification(alert.id)}
+                      sx={{ ml: 1 }}
+                    >
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </ListItem>
+                </motion.div>
+              ))}
+            </List>
+          )}
+        </Paper>
+      </Popover>
       
       {/* Navigation Drawer */}
       <Box

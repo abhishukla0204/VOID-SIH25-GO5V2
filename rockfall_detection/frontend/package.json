@@ -1,7 +1,7 @@
 {
   "name": "rockfall-detection-frontend",
   "version": "1.0.0",
-  "description": "React frontend for Rockfall Detection and Prediction System",
+  "description": "Standalone React frontend for Rockfall Detection and Prediction System - Demo Version",
   "private": true,
   "type": "module",
   "scripts": {

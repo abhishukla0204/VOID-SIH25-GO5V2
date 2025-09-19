@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { apiRequest } from '../config/api'
+// import { apiRequest } from '../config/api' // Commented for frontend-only showcase
+// import { cloudinary } from '../config/cloudinary' // Future cloudinary integration
 import {
   Grid,
   Card,
@@ -39,25 +40,61 @@ const DEMAnalysis = () => {
   const [zoomLevel, setZoomLevel] = useState(1)
   const [imageLoaded, setImageLoaded] = useState(false)
 
-  // Available DEM files
+  // Available DEM files with static image paths
   const demFiles = [
     {
       id: 'bingham_canyon',
       name: 'Bingham Canyon Mine',
       location: 'Utah, USA',
-      description: 'Large open-pit copper mine with significant terrain variations'
+      description: 'Large open-pit copper mine with significant terrain variations',
+      imagePath: '/bingham_canyon_elevation_map.png',
+      // cloudinaryUrl: 'https://res.cloudinary.com/yourcloud/image/upload/v1234567890/dem/bingham_canyon.png', // Future use
+      stats: {
+        average_elevation: 2040.2,
+        min_elevation: 1650.3,
+        max_elevation: 2922.0,
+        slope_mean: 83.04,
+        slope_max: 89.94,
+        high_risk_percentage: 89.2,
+        medium_risk_percentage: 8.1,
+        low_risk_percentage: 2.7
+      }
     },
     {
       id: 'chuquicamata',
       name: 'Chuquicamata Copper Mine',
       location: 'Chile',
-      description: 'One of the largest open-pit mines in the world'
+      description: 'One of the largest open-pit mines in the world',
+      imagePath: '/chuquicamata_elevation_map.png',
+      // cloudinaryUrl: 'https://res.cloudinary.com/yourcloud/image/upload/v1234567890/dem/chuquicamata.png', // Future use
+      stats: {
+        average_elevation: 2850.5,
+        min_elevation: 2200.1,
+        max_elevation: 3600.8,
+        slope_mean: 65.2,
+        slope_max: 87.3,
+        high_risk_percentage: 72.4,
+        medium_risk_percentage: 19.8,
+        low_risk_percentage: 7.8
+      }
     },
     {
       id: 'grasberg',
       name: 'Grasberg Mine',
       location: 'Papua, Indonesia',
-      description: 'High-altitude mining operation in mountainous terrain'
+      description: 'High-altitude mining operation in mountainous terrain',
+      imagePath: '/grasberg_elevation_map.png',
+      // cloudinaryUrl: 'https://res.cloudinary.com/yourcloud/image/upload/v1234567890/dem/grasberg.png', // Future use
+      stats: {
+        average_elevation: 3950.7,
+        min_elevation: 3200.0,
+        max_elevation: 4884.2,
+        slope_mean: 78.9,
+        slope_max: 89.1,
+        high_risk_percentage: 85.6,
+        medium_risk_percentage: 11.2,
+        low_risk_percentage: 3.2
+      }
     }
   ]
 
@@ -72,14 +109,15 @@ const DEMAnalysis = () => {
     { color: '#FFFFFF', elevation: 'Highest', description: 'Mountain peaks, extreme elevation' }
   ]
 
-  // Fetch DEM data when selection changes
+  // Fetch DEM data when selection changes (now using static data)
   useEffect(() => {
     console.log(`🔍 DEM selection useEffect triggered. selectedDEM: ${selectedDEM}`)
     if (selectedDEM) {
-      console.log(`📥 Triggering fetchDEMData for: ${selectedDEM}`)
-      fetchDEMData()
+      console.log(`📥 Loading static DEM data for: ${selectedDEM}`)
+      loadStaticDEMData()
     } else {
-      console.log(`⏸️ No DEM selected, skipping fetch`)
+      console.log(`⏸️ No DEM selected, clearing data`)
+      setDemData(null)
     }
   }, [selectedDEM])
 
@@ -89,22 +127,57 @@ const DEMAnalysis = () => {
     console.log(`📂 Available DEM files:`, demFiles)
   }, [])
 
-  const fetchDEMData = async () => {
-    console.log(`🗺️ Fetching DEM data for: ${selectedDEM}`)
+  const loadStaticDEMData = () => {
+    console.log(`🗺️ Loading static DEM data for: ${selectedDEM}`)
     setLoading(true)
     setError(null)
     setImageLoaded(false)
     
     try {
-      console.log(`📡 Making API request to: /api/dem/analyze/${selectedDEM}`)
-      const data = await apiRequest(`/api/dem/analyze/${selectedDEM}`)
-      console.log(`✅ DEM data received:`, data)
-      setDemData(data)
+      // Find the selected DEM file data
+      const selectedDEMData = demFiles.find(dem => dem.id === selectedDEM)
+      
+      if (!selectedDEMData) {
+        throw new Error('DEM data not found')
+      }
+
+      // Simulate loading delay for showcase
+      setTimeout(() => {
+        const mockDemData = {
+          dem_id: selectedDEMData.id,
+          image_url: selectedDEMData.imagePath,
+          // Use cloudinary URL in the future: selectedDEMData.cloudinaryUrl,
+          statistics: {
+            elevation_stats: {
+              mean: selectedDEMData.stats.average_elevation,
+              min: selectedDEMData.stats.min_elevation,
+              max: selectedDEMData.stats.max_elevation,
+              range: selectedDEMData.stats.max_elevation - selectedDEMData.stats.min_elevation
+            },
+            slope_stats: {
+              mean: selectedDEMData.stats.slope_mean,
+              max: selectedDEMData.stats.slope_max,
+              std: (selectedDEMData.stats.slope_max - selectedDEMData.stats.slope_mean) / 3
+            },
+            risk_distribution: {
+              high_risk_percentage: selectedDEMData.stats.high_risk_percentage,
+              medium_risk_percentage: selectedDEMData.stats.medium_risk_percentage,
+              low_risk_percentage: selectedDEMData.stats.low_risk_percentage
+            }
+          },
+          processing_time: Math.random() * 2000 + 500, // 500-2500ms
+          timestamp: new Date().toISOString()
+        }
+        
+        console.log(`✅ Static DEM data loaded:`, mockDemData)
+        setDemData(mockDemData)
+        setLoading(false)
+      }, 800) // Simulate processing time
+      
     } catch (err) {
-      console.error(`❌ DEM fetch failed for ${selectedDEM}:`, err)
+      console.error(`❌ DEM loading failed for ${selectedDEM}:`, err)
       setError(err.message)
       setDemData(null)
-    } finally {
       setLoading(false)
     }
   }
@@ -256,7 +329,7 @@ const DEMAnalysis = () => {
                   <Button
                     variant="outlined"
                     startIcon={<RefreshIcon />}
-                    onClick={fetchDEMData}
+                    onClick={loadStaticDEMData}
                     disabled={!selectedDEM || loading}
                     sx={{ color: '#3b82f6', borderColor: '#3b82f6' }}
                   >
@@ -443,7 +516,7 @@ const DEMAnalysis = () => {
                       <Grid item xs={6}>
                         <StatisticCard
                           title="Minimum"
-                          value={demData.statistics?.min_elevation || 'N/A'}
+                          value={demData.statistics?.elevation_stats?.min || 'N/A'}
                           unit="meters"
                           color="#22c55e"
                           icon={<TerrainIcon sx={{ color: '#22c55e' }} />}
@@ -452,7 +525,7 @@ const DEMAnalysis = () => {
                       <Grid item xs={6}>
                         <StatisticCard
                           title="Maximum"
-                          value={demData.statistics?.max_elevation || 'N/A'}
+                          value={demData.statistics?.elevation_stats?.max || 'N/A'}
                           unit="meters"
                           color="#f44336"
                           icon={<TerrainIcon sx={{ color: '#f44336' }} />}
@@ -461,7 +534,7 @@ const DEMAnalysis = () => {
                       <Grid item xs={6}>
                         <StatisticCard
                           title="Average"
-                          value={demData.statistics?.mean_elevation || 'N/A'}
+                          value={demData.statistics?.elevation_stats?.mean || 'N/A'}
                           unit="meters"
                           color="#3b82f6"
                           icon={<TerrainIcon sx={{ color: '#3b82f6' }} />}
@@ -470,7 +543,7 @@ const DEMAnalysis = () => {
                       <Grid item xs={6}>
                         <StatisticCard
                           title="Std Dev"
-                          value={demData.statistics?.std_elevation || 'N/A'}
+                          value={demData.statistics?.elevation_stats?.range || 'N/A'}
                           unit="meters"
                           color="#8b5cf6"
                           icon={<TerrainIcon sx={{ color: '#8b5cf6' }} />}
@@ -485,13 +558,13 @@ const DEMAnalysis = () => {
                         Terrain Analysis
                       </Typography>
                       <Typography variant="body2" sx={{ color: 'white', mb: 1 }}>
-                        Elevation Range: {demData.statistics?.elevation_range || 'N/A'} meters
+                        Elevation Range: {demData.statistics?.elevation_stats?.range || 'N/A'} meters
                       </Typography>
                       <Typography variant="body2" sx={{ color: 'white', mb: 1 }}>
-                        Terrain Type: {demData.statistics?.terrain_type || 'Complex'}
+                        Terrain Type: {'Complex'}
                       </Typography>
                       <Typography variant="body2" sx={{ color: 'white' }}>
-                        Risk Assessment: {demData.statistics?.risk_level || 'Moderate to High'}
+                        Risk Assessment: {'Moderate to High'}
                       </Typography>
                     </Box>
                   </CardContent>

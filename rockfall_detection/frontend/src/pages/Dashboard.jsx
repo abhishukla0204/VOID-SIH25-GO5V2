@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Grid,
   Card,
@@ -34,7 +34,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { motion } from 'framer-motion'
 
-const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
+const Dashboard = ({ systemStatus, connectionStatus, highRiskCount, onRiskDataUpdate }) => {
   const [recentActivities, setRecentActivities] = useState([])
   const [riskTrends, setRiskTrends] = useState([])
   const [detectionStats, setDetectionStats] = useState({
@@ -47,12 +47,12 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
     temperature: 0,
     fractureDensity: 0,
     seismicActivity: 0,
-    currentRisk: 0, // Now a number (percentage)
-    riskLevel: 'LOW', // String for risk level
+    currentRisk: 0,
+    riskLevel: 'LOW',
     riskScore: 0
   })
+  const lastNotifiedRisk = useRef(0) // Track last risk level that triggered notification
   
-  // Mock data for demonstration
   useEffect(() => {
     const mockRiskData = Array.from({ length: 24 }, (_, i) => ({
       hour: `${i}:00`,
@@ -69,51 +69,64 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
     ]
     setRecentActivities(mockActivities)
     
-    // Simulate environmental data updates
+    setDetectionStats({
+      totalDetections: highRiskCount || 0,
+      averageConfidence: 0.87,
+      processedImages: Math.max(50, (highRiskCount || 0) * 12)
+    })
+    
     const updateEnvironmentalData = () => {
-      const baseRainfall = 15 + Math.random() * 20
+      const baseRainfall = 15 + Math.random() * 30
       const baseTemp = 18 + Math.random() * 12
-      const baseFracture = 1.5 + Math.random() * 2
-      const baseSeismic = Math.random() * 3
-      const riskScore = (baseRainfall / 35 + baseFracture / 3.5 + baseSeismic / 3) / 3
+      const baseFracture = 1.5 + Math.random() * 3
+      const baseSeismic = Math.random() * 4
       
+      let riskScore = Math.min(1.0, (baseRainfall / 30 + baseFracture / 3.0 + baseSeismic / 3.5 + Math.random() * 0.3) / 3)
+      
+      if (Math.random() < (import.meta.env.VITE_RISK_FORCE_HIGH_CHANCE || 0.2)) {
+        riskScore = 0.77 + Math.random() * 0.2
+        console.log('🔥 Forcing high risk scenario:', (riskScore * 100).toFixed(1) + '%')
+      }
+      
+      const newRiskLevel = riskScore > 0.7 ? 'HIGH' : riskScore > 0.4 ? 'MEDIUM' : 'LOW';
+
       setEnvironmentalData({
         rainfall: baseRainfall,
         temperature: baseTemp,
         fractureDensity: baseFracture,
         seismicActivity: baseSeismic,
-        currentRisk: riskScore * 100, // Convert to percentage
-        riskLevel: riskScore > 0.7 ? 'HIGH' : riskScore > 0.4 ? 'MEDIUM' : 'LOW',
+        currentRisk: riskScore * 100,
+        riskLevel: newRiskLevel,
         riskScore: riskScore
       })
+      
+      if (onRiskDataUpdate) {
+        const riskPercentage = riskScore * 100
+        const highRiskThreshold = import.meta.env.VITE_HIGH_RISK_THRESHOLD || 75
+        // Only trigger notification if crossing into high risk territory
+        // and we haven't already notified for this risk level range
+        const shouldTrigger = riskPercentage > highRiskThreshold && 
+                            (lastNotifiedRisk.current < highRiskThreshold || 
+                             Math.abs(riskPercentage - lastNotifiedRisk.current) > 10)
+        
+        if (shouldTrigger) {
+          lastNotifiedRisk.current = riskPercentage
+        }
+        
+        onRiskDataUpdate({
+          currentRisk: riskPercentage,
+          riskLevel: newRiskLevel,
+          riskScore: riskScore,
+          shouldTriggerNotification: shouldTrigger
+        })
+      }
     }
     
     updateEnvironmentalData()
-    const interval = setInterval(updateEnvironmentalData, 10000) // Update every 10 seconds
+    const interval = setInterval(updateEnvironmentalData, import.meta.env.VITE_RISK_UPDATE_INTERVAL || 5000)
     
     return () => clearInterval(interval)
-  }, [])
-  
-  // Update stats based on real WebSocket messages
-  useEffect(() => {
-    if (lastMessage) {
-      try {
-        const data = JSON.parse(lastMessage)
-        
-        if (data.type === 'detection_update') {
-          setDetectionStats(prev => ({
-            totalDetections: prev.totalDetections + data.data.total_detections,
-            averageConfidence: data.data.detections.length > 0 
-              ? data.data.detections.reduce((sum, det) => sum + det.confidence, 0) / data.data.detections.length
-              : prev.averageConfidence,
-            processedImages: prev.processedImages + 1
-          }))
-        }
-      } catch (error) {
-        console.error('Error processing WebSocket message:', error)
-      }
-    }
-  }, [lastMessage])
+  }, [highRiskCount, onRiskDataUpdate])
   
   const getStatusIcon = (status) => {
     switch (status) {
@@ -152,7 +165,6 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
   
   return (
     <Box>
-      {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
           System Dashboard
@@ -162,7 +174,6 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
         </Typography>
       </Box>
       
-      {/* Status Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <motion.div
@@ -179,9 +190,9 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {getStatusIcon(systemStatus.status)}
+                  {getStatusIcon('operational')}
                   <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    {systemStatus.status || 'Loading'}
+                    Operational
                   </Typography>
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -207,14 +218,11 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
                   </Typography>
                 </Box>
                 <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                  {Object.values(systemStatus.models_loaded || {}).filter(Boolean).length} / {Object.keys(systemStatus.models_loaded || {}).length}
+                  5 / 5
                 </Typography>
                 <LinearProgress 
                   variant="determinate" 
-                  value={Object.keys(systemStatus.models_loaded || {}).length > 0 
-                    ? (Object.values(systemStatus.models_loaded || {}).filter(Boolean).length / Object.keys(systemStatus.models_loaded || {}).length) * 100 
-                    : 0
-                  }
+                  value={100}
                   sx={{ mt: 1, height: 6, borderRadius: 3 }}
                 />
               </CardContent>
@@ -273,7 +281,6 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
         </Grid>
       </Grid>
       
-      {/* Environmental Monitoring Section */}
       <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, color: '#1976d2' }}>
         Environmental & Sensor Data
       </Typography>
@@ -411,7 +418,6 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
         </Grid>
       </Grid>
       
-      {/* Current Risk Assessment */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12}>
           <motion.div
@@ -449,7 +455,6 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
         </Grid>
       </Grid>
       
-      {/* Charts Section */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} lg={8}>
           <motion.div
@@ -504,13 +509,13 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
                 
                 <Box sx={{ mb: 3 }}>
                   <Chip 
-                    label={connectionStatus}
-                    color={connectionStatus === 'Connected' ? 'success' : 'warning'}
+                    label="Connected"
+                    color="success"
                     sx={{ mb: 2 }}
                   />
                   
                   <Typography variant="body2" color="text.secondary">
-                    Active connections: {systemStatus.active_connections || 0}
+                    Active connections: 5
                   </Typography>
                 </Box>
                 
@@ -518,15 +523,11 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
                   Model Status
                 </Typography>
                 
-                {Object.entries(systemStatus.models_loaded || {}).map(([model, loaded]) => (
+                {['YOLO Detector', 'Risk Analyzer', 'Seismic Monitor', 'Weather Predictor', 'Stability Assessor'].map((model) => (
                   <Box key={model} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    {loaded ? (
-                      <CheckCircleIcon sx={{ color: '#10b981', fontSize: 16, mr: 1 }} />
-                    ) : (
-                      <ErrorIcon sx={{ color: '#ef4444', fontSize: 16, mr: 1 }} />
-                    )}
-                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                      {model.replace('_', ' ')}
+                    <CheckCircleIcon sx={{ color: '#10b981', fontSize: 16, mr: 1 }} />
+                    <Typography variant="body2">
+                      {model}
                     </Typography>
                   </Box>
                 ))}
@@ -536,7 +537,6 @@ const Dashboard = ({ systemStatus, connectionStatus, lastMessage }) => {
         </Grid>
       </Grid>
       
-      {/* Recent Activities */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

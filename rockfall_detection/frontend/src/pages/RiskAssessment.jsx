@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { apiRequest } from '../config/api'
+// import { apiRequest } from '../config/api' // Commented for frontend-only showcase
 import {
   Box,
   Card,
@@ -71,39 +71,275 @@ const RiskAssessment = () => {
       [field]: value
     }))
   }
+
+  // Enhanced Frontend risk calculation formula with proper weights
+  const calculateRiskScore = (data) => {
+    console.log('🧮 Calculating risk score with data:', data)
+    
+    // ===== PRIMARY RISK FACTORS (60% total weight) =====
+    
+    // 1. Slope Risk (25% - Most critical factor)
+    let slopeRisk = 0
+    if (data.slope <= 30) {
+      slopeRisk = 0.1 // Very low risk for gentle slopes
+    } else if (data.slope <= 45) {
+      slopeRisk = 0.3 // Moderate risk
+    } else if (data.slope <= 60) {
+      slopeRisk = 0.6 // High risk - exponential increase
+    } else if (data.slope <= 75) {
+      slopeRisk = 0.85 // Very high risk
+    } else {
+      slopeRisk = 0.95 // Critical risk for near-vertical slopes
+    }
+    
+    // 2. Geological Stability (20% weight)
+    let geoStabilityRisk = 0
+    // Fracture density is critical - more fractures = exponentially higher risk
+    const fractureRisk = Math.min(Math.pow(data.fracture_density / 5, 1.5), 1) * 0.5
+    const instabilityRisk = Math.pow(data.instability_index, 2) * 0.3 // Quadratic response
+    const roughnessRisk = (1 - data.roughness) * 0.2 // Smooth surfaces are more dangerous
+    geoStabilityRisk = fractureRisk + instabilityRisk + roughnessRisk
+    
+    // 3. Water/Moisture Impact (15% weight)
+    let waterRisk = 0
+    const rainfallRisk = Math.min(data.rainfall / 150, 1) * 0.4 // Heavy rain destabilizes
+    const wetnessRisk = Math.pow(data.wetness_index, 1.5) * 0.35 // Exponential moisture effect
+    const precipitationRisk = Math.min(data.precipitation_intensity / 15, 1) * 0.25
+    waterRisk = rainfallRisk + wetnessRisk + precipitationRisk
+    
+    // ===== SECONDARY RISK FACTORS (25% total weight) =====
+    
+    // 4. Thermal Stress (12% weight)
+    let thermalRisk = 0
+    const tempVariationRisk = Math.min(data.temperature_variation / 20, 1) * 0.6
+    const freezeThawRisk = Math.min(data.freeze_thaw_cycles / 30, 1) * 0.4
+    thermalRisk = tempVariationRisk + freezeThawRisk
+    
+    // 5. Seismic Activity (8% weight)
+    let seismicRisk = 0
+    if (data.seismic_activity <= 2) {
+      seismicRisk = 0.1
+    } else if (data.seismic_activity <= 4) {
+      seismicRisk = 0.4
+    } else if (data.seismic_activity <= 6) {
+      seismicRisk = 0.7
+    } else {
+      seismicRisk = 0.95 // Major earthquakes
+    }
+    
+    // 6. Weather Conditions (5% weight)
+    let weatherRisk = 0
+    const windRisk = Math.min(data.wind_speed / 80, 1) * 0.5
+    const humidityRisk = Math.min(data.humidity / 100, 1) * 0.3
+    const elevationRisk = Math.min(data.elevation / 3000, 1) * 0.2 // Higher altitude = more exposure
+    weatherRisk = windRisk + humidityRisk + elevationRisk
+    
+    // ===== SEASONAL MODIFIERS (15% total weight) =====
+    
+    // 7. Seasonal Risk (10% weight)
+    let seasonalRisk = 0
+    const month = data.month
+    if (month >= 3 && month <= 5) {
+      seasonalRisk = 0.8 // Spring - snowmelt and rain
+    } else if (month >= 6 && month <= 8) {
+      seasonalRisk = 0.3 // Summer - more stable
+    } else if (month >= 9 && month <= 11) {
+      seasonalRisk = 0.7 // Fall - freeze-thaw begins
+    } else {
+      seasonalRisk = 0.6 // Winter - freeze-thaw cycles
+    }
+    
+    // 8. Temporal Factors (5% weight)
+    let temporalRisk = 0
+    // Day of year effect (spring/fall peaks)
+    const dayRisk = Math.abs(Math.sin((data.day_of_year - 80) * Math.PI / 182.5)) * 0.6
+    const variabilityRisk = data.slope_variability * 0.4 // Irregular slopes more dangerous
+    temporalRisk = dayRisk + variabilityRisk
+    
+    // ===== FINAL WEIGHTED CALCULATION =====
+    
+    const primaryRisk = (slopeRisk * 0.25) + (geoStabilityRisk * 0.20) + (waterRisk * 0.15)
+    const secondaryRisk = (thermalRisk * 0.12) + (seismicRisk * 0.08) + (weatherRisk * 0.05)
+    const seasonalModifier = (seasonalRisk * 0.10) + (temporalRisk * 0.05)
+    
+    const baseScore = primaryRisk + secondaryRisk + seasonalModifier
+    
+    // ===== CRITICAL THRESHOLD ADJUSTMENTS =====
+    
+    let finalScore = baseScore
+    
+    // Critical slope adjustment - slopes >70° get major boost
+    if (data.slope > 70) {
+      finalScore = Math.min(finalScore + 0.3, 1)
+    } else if (data.slope > 60) {
+      finalScore = Math.min(finalScore + 0.15, 1)
+    }
+    
+    // High fracture density boost
+    if (data.fracture_density > 7) {
+      finalScore = Math.min(finalScore + 0.2, 1)
+    }
+    
+    // Major seismic activity override
+    if (data.seismic_activity > 7) {
+      finalScore = Math.min(finalScore + 0.25, 1)
+    }
+    
+    // Extreme weather conditions
+    if (data.rainfall > 200 || data.precipitation_intensity > 20) {
+      finalScore = Math.min(finalScore + 0.15, 1)
+    }
+    
+    console.log(`🔍 Risk breakdown: Slope=${slopeRisk.toFixed(2)}, Geo=${geoStabilityRisk.toFixed(2)}, Water=${waterRisk.toFixed(2)}, Final=${finalScore.toFixed(2)}`)
+    
+    return Math.min(Math.max(finalScore, 0), 1) // Clamp between 0 and 1
+  }
+
+  const getRiskLevel = (score) => {
+    if (score >= 0.75) return 'CRITICAL'
+    if (score >= 0.55) return 'HIGH'
+    if (score >= 0.35) return 'MEDIUM'
+    if (score >= 0.15) return 'LOW'
+    return 'MINIMAL'
+  }
+
+  const generateRecommendations = (score, data) => {
+    const recommendations = []
+    
+    // Base recommendations by risk level
+    if (score >= 0.75) {
+      recommendations.push('🚨 IMMEDIATE EVACUATION of all personnel from danger zones')
+      recommendations.push('🛑 COMPLETE SHUTDOWN of operations in affected areas')
+      recommendations.push('📡 Deploy emergency real-time monitoring systems')
+      recommendations.push('🚁 Prepare emergency response and rescue teams')
+    } else if (score >= 0.55) {
+      recommendations.push('⚠️ Restrict access to high-risk slope areas')
+      recommendations.push('📊 Increase monitoring frequency to every 15 minutes')
+      recommendations.push('👥 Reduce personnel in vulnerable zones to essential only')
+      recommendations.push('📞 Alert emergency response teams for standby')
+    } else if (score >= 0.35) {
+      recommendations.push('🔍 Conduct detailed geological slope stability analysis')
+      recommendations.push('⏰ Increase inspection frequency to hourly checks')
+      recommendations.push('📋 Review and update emergency response protocols')
+      recommendations.push('🎯 Focus monitoring on identified high-risk zones')
+    } else if (score >= 0.15) {
+      recommendations.push('📅 Maintain standard monitoring schedule')
+      recommendations.push('🛡️ Continue routine safety inspections')
+      recommendations.push('📈 Monitor weather conditions for changes')
+    } else {
+      recommendations.push('✅ Continue normal operations with standard precautions')
+      recommendations.push('📝 Maintain routine documentation and reporting')
+    }
+    
+    // Specific factor-based recommendations
+    if (data.slope > 70) {
+      recommendations.push('🏔️ CRITICAL: Extreme slope angle detected - implement immediate stabilization')
+    } else if (data.slope > 60) {
+      recommendations.push('⛰️ HIGH SLOPE RISK: Consider terracing or retaining wall installation')
+    } else if (data.slope > 45) {
+      recommendations.push('📐 Moderate slope risk - monitor for slope movement indicators')
+    }
+    
+    if (data.fracture_density > 7) {
+      recommendations.push('🪨 CRITICAL FRACTURING: Rock mass highly unstable - urgent stabilization needed')
+    } else if (data.fracture_density > 4) {
+      recommendations.push('🔍 High fracture density - implement rock bolting or mesh installation')
+    }
+    
+    if (data.rainfall > 200) {
+      recommendations.push('🌧️ EXTREME RAINFALL: Install enhanced drainage and water diversion systems')
+    } else if (data.rainfall > 100) {
+      recommendations.push('💧 Heavy rainfall detected - improve slope drainage immediately')
+    }
+    
+    if (data.seismic_activity > 7) {
+      recommendations.push('🌍 MAJOR SEISMIC RISK: Earthquake activity detected - emergency protocols activated')
+    } else if (data.seismic_activity > 4) {
+      recommendations.push('📳 Elevated seismic activity - install vibration monitoring sensors')
+    }
+    
+    if (data.freeze_thaw_cycles > 25) {
+      recommendations.push('🧊 Extreme freeze-thaw cycles - monitor for thermal stress fractures')
+    } else if (data.freeze_thaw_cycles > 15) {
+      recommendations.push('❄️ Significant thermal cycling - inspect for weathering damage')
+    }
+    
+    if (data.temperature_variation > 25) {
+      recommendations.push('🌡️ Extreme temperature variations causing thermal stress')
+    }
+    
+    if (data.precipitation_intensity > 20) {
+      recommendations.push('⛈️ SEVERE WEATHER: Intense precipitation causing rapid saturation')
+    }
+    
+    if (data.wind_speed > 80) {
+      recommendations.push('💨 High wind speeds may affect loose debris and monitoring equipment')
+    }
+    
+    return recommendations
+  }
   
-  const handleAssessment = async () => {
+  const handleAssessment = () => {
     setLoading(true)
     setError(null)
     
     try {
-      const results = await apiRequest('/api/predict-risk', {
-        method: 'POST',
-        body: JSON.stringify(formData),
-        headers: {
-          'Content-Type': 'application/json'
+      // Simulate processing delay for showcase
+      setTimeout(() => {
+        const riskScore = calculateRiskScore(formData)
+        const riskLevel = getRiskLevel(riskScore)
+        const recommendations = generateRecommendations(riskScore, formData)
+        
+        // Identify contributing risk factors based on enhanced analysis
+        const contributingFactors = []
+        if (formData.slope > 60) contributingFactors.push('steep_slope')
+        if (formData.slope > 75) contributingFactors.push('critical_slope')
+        if (formData.fracture_density > 5) contributingFactors.push('high_fracture_density')
+        if (formData.fracture_density > 7) contributingFactors.push('critical_fractures')
+        if (formData.rainfall > 150) contributingFactors.push('heavy_rainfall')
+        if (formData.rainfall > 250) contributingFactors.push('extreme_rainfall')
+        if (formData.seismic_activity > 4) contributingFactors.push('seismic_activity')
+        if (formData.seismic_activity > 7) contributingFactors.push('major_earthquakes')
+        if (formData.freeze_thaw_cycles > 20) contributingFactors.push('thermal_cycling')
+        if (formData.temperature_variation > 20) contributingFactors.push('thermal_stress')
+        if (formData.instability_index > 0.6) contributingFactors.push('geological_instability')
+        if (formData.wetness_index > 0.7) contributingFactors.push('water_saturation')
+        if (formData.precipitation_intensity > 15) contributingFactors.push('intense_precipitation')
+        if (formData.wind_speed > 70) contributingFactors.push('high_winds')
+        if (formData.elevation > 2500) contributingFactors.push('high_altitude')
+        
+        const results = {
+          risk_score: riskScore,
+          risk_level: riskLevel,
+          confidence: Math.random() * 0.2 + 0.8, // 80-100% confidence for enhanced model
+          recommendations: recommendations,
+          contributing_factors: contributingFactors,
+          probability_next_24h: riskScore * 0.85,
+          probability_next_week: riskScore * 0.95,
+          timestamp: new Date().toISOString()
         }
-      })
-      
-      setRiskResults(results)
-      
-      // Add to history
-      const newAssessment = {
-        id: Date.now(),
-        timestamp: new Date().toLocaleString(),
-        risk_level: results.risk_level,
-        risk_score: results.risk_score,
-        confidence: results.confidence,
-        recommendations: results.recommendations,
-        data: formData
-      }
-      
-      setAssessmentHistory(prev => [newAssessment, ...prev.slice(0, 9)]) // Keep last 10
+        
+        console.log('✅ Risk assessment completed:', results)
+        setRiskResults(results)
+        
+        // Add to history
+        const newAssessment = {
+          id: Date.now(),
+          timestamp: new Date().toLocaleString(),
+          risk_level: results.risk_level,
+          risk_score: results.risk_score,
+          confidence: results.confidence,
+          recommendations: results.recommendations,
+          data: formData
+        }
+        
+        setAssessmentHistory(prev => [newAssessment, ...prev.slice(0, 9)]) // Keep last 10
+        setLoading(false)
+      }, 1200) // Simulate processing time
       
     } catch (err) {
       setError('Failed to assess risk. Please check your input values and try again.')
       console.error('Risk assessment error:', err)
-    } finally {
       setLoading(false)
     }
   }
