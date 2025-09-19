@@ -21,6 +21,7 @@ const darkTheme = createTheme({
       light: '#a78bfa',
       dark: '#7c3aed',
     },
+    // this is cooment
     error: {
       main: '#ef4444',
       light: '#f87171',
