@@ -34,7 +34,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
 import { motion } from 'framer-motion'
 
-const Dashboard = ({ systemStatus, connectionStatus, highRiskCount, onRiskDataUpdate }) => {
+const Dashboard = ({ systemStatus, connectionStatus, highRiskCount, environmentalData, onRiskDataUpdate }) => {
   const [recentActivities, setRecentActivities] = useState([])
   const [riskTrends, setRiskTrends] = useState([])
   const [detectionStats, setDetectionStats] = useState({
@@ -42,24 +42,24 @@ const Dashboard = ({ systemStatus, connectionStatus, highRiskCount, onRiskDataUp
     averageConfidence: 0,
     processedImages: 0
   })
-  const [environmentalData, setEnvironmentalData] = useState({
-    rainfall: 0,
-    temperature: 0,
-    fractureDensity: 0,
-    seismicActivity: 0,
-    currentRisk: 0,
-    riskLevel: 'LOW',
-    riskScore: 0
-  })
-  const lastNotifiedRisk = useRef(0) // Track last risk level that triggered notification
   
   useEffect(() => {
-    const mockRiskData = Array.from({ length: 24 }, (_, i) => ({
+    // Initialize with some historical mock data
+    const initialRiskData = Array.from({ length: 23 }, (_, i) => ({
       hour: `${i}:00`,
-      risk: Math.random() * 0.8,
-      detections: Math.floor(Math.random() * 5)
+      risk: Math.random() * 0.6, // Start with lower risk values
+      detections: Math.floor(Math.random() * 3)
     }))
-    setRiskTrends(mockRiskData)
+    
+    // Add current hour as the last data point
+    const currentHour = new Date().getHours()
+    initialRiskData.push({
+      hour: `${currentHour}:00`,
+      risk: 0, // Will be updated by real data
+      detections: 0
+    })
+    
+    setRiskTrends(initialRiskData)
     
     const mockActivities = [
       { time: '14:30', type: 'detection', message: 'Rock detected with 95% confidence', severity: 'info' },
@@ -74,59 +74,29 @@ const Dashboard = ({ systemStatus, connectionStatus, highRiskCount, onRiskDataUp
       averageConfidence: 0.87,
       processedImages: Math.max(50, (highRiskCount || 0) * 12)
     })
-    
-    const updateEnvironmentalData = () => {
-      const baseRainfall = 15 + Math.random() * 30
-      const baseTemp = 18 + Math.random() * 12
-      const baseFracture = 1.5 + Math.random() * 3
-      const baseSeismic = Math.random() * 4
+  }, [highRiskCount])
+  
+  // Update graph when environmental data changes
+  useEffect(() => {
+    if (environmentalData && environmentalData.currentRisk !== undefined) {
+      const currentHour = new Date().getHours()
+      const currentRiskForGraph = environmentalData.currentRisk / 100 // Convert percentage to 0-1 scale for graph
       
-      let riskScore = Math.min(1.0, (baseRainfall / 30 + baseFracture / 3.0 + baseSeismic / 3.5 + Math.random() * 0.3) / 3)
-      
-      if (Math.random() < (import.meta.env.VITE_RISK_FORCE_HIGH_CHANCE || 0.2)) {
-        riskScore = 0.77 + Math.random() * 0.2
-        console.log('🔥 Forcing high risk scenario:', (riskScore * 100).toFixed(1) + '%')
-      }
-      
-      const newRiskLevel = riskScore > 0.7 ? 'HIGH' : riskScore > 0.4 ? 'MEDIUM' : 'LOW';
-
-      setEnvironmentalData({
-        rainfall: baseRainfall,
-        temperature: baseTemp,
-        fractureDensity: baseFracture,
-        seismicActivity: baseSeismic,
-        currentRisk: riskScore * 100,
-        riskLevel: newRiskLevel,
-        riskScore: riskScore
-      })
-      
-      if (onRiskDataUpdate) {
-        const riskPercentage = riskScore * 100
-        const highRiskThreshold = import.meta.env.VITE_HIGH_RISK_THRESHOLD || 75
-        // Only trigger notification if crossing into high risk territory
-        // and we haven't already notified for this risk level range
-        const shouldTrigger = riskPercentage > highRiskThreshold && 
-                            (lastNotifiedRisk.current < highRiskThreshold || 
-                             Math.abs(riskPercentage - lastNotifiedRisk.current) > 10)
-        
-        if (shouldTrigger) {
-          lastNotifiedRisk.current = riskPercentage
+      setRiskTrends(prevTrends => {
+        const newTrends = [...prevTrends]
+        // Update the current hour's data point
+        const currentHourIndex = newTrends.findIndex(item => item.hour === `${currentHour}:00`)
+        if (currentHourIndex !== -1) {
+          newTrends[currentHourIndex] = {
+            ...newTrends[currentHourIndex],
+            risk: currentRiskForGraph,
+            detections: environmentalData.riskLevel === 'HIGH' ? Math.floor(Math.random() * 3) + 2 : Math.floor(Math.random() * 2)
+          }
         }
-        
-        onRiskDataUpdate({
-          currentRisk: riskPercentage,
-          riskLevel: newRiskLevel,
-          riskScore: riskScore,
-          shouldTriggerNotification: shouldTrigger
-        })
-      }
+        return newTrends
+      })
     }
-    
-    updateEnvironmentalData()
-    const interval = setInterval(updateEnvironmentalData, import.meta.env.VITE_RISK_UPDATE_INTERVAL || 5000)
-    
-    return () => clearInterval(interval)
-  }, [highRiskCount, onRiskDataUpdate])
+  }, [environmentalData])
   
   const getStatusIcon = (status) => {
     switch (status) {
@@ -428,7 +398,7 @@ const Dashboard = ({ systemStatus, connectionStatus, highRiskCount, onRiskDataUp
             <Card 
               sx={{ 
                 background: `linear-gradient(135deg, ${
-                  environmentalData.currentRisk > 70 ? '#D32F2F, #B71C1C' :
+                  environmentalData.currentRisk > 75 ? '#D32F2F, #B71C1C' :
                   environmentalData.currentRisk > 40 ? '#F57C00, #E65100' :
                   '#388E3C, #2E7D32'
                 })`,
@@ -472,13 +442,22 @@ const Dashboard = ({ systemStatus, connectionStatus, highRiskCount, onRiskDataUp
                     <AreaChart data={riskTrends}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="hour" stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" />
+                      <YAxis 
+                        stroke="#94a3b8" 
+                        domain={[0, 1]}
+                        tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
+                      />
                       <Tooltip 
                         contentStyle={{ 
                           backgroundColor: '#1e293b', 
                           border: '1px solid #334155',
                           borderRadius: '8px'
                         }}
+                        formatter={(value, name) => [
+                          `${(value * 100).toFixed(1)}%`, 
+                          name === 'risk' ? 'Risk Level' : 'Detections'
+                        ]}
+                        labelFormatter={(label) => `Time: ${label}`}
                       />
                       <Area 
                         type="monotone" 
@@ -504,23 +483,7 @@ const Dashboard = ({ systemStatus, connectionStatus, highRiskCount, onRiskDataUp
             <Card className="glass-card" sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="h6" component="div" sx={{ mb: 2 }}>
-                  Connection Status
-                </Typography>
-                
-                <Box sx={{ mb: 3 }}>
-                  <Chip 
-                    label="Connected"
-                    color="success"
-                    sx={{ mb: 2 }}
-                  />
-                  
-                  <Typography variant="body2" color="text.secondary">
-                    Active connections: 5
-                  </Typography>
-                </Box>
-                
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>
-                  Model Status
+                  System Status
                 </Typography>
                 
                 {['YOLO Detector', 'Risk Analyzer', 'Seismic Monitor', 'Weather Predictor', 'Stability Assessor'].map((model) => (

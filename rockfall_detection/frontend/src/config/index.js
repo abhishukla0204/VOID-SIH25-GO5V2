@@ -37,8 +37,8 @@ export const config = {
   notifications: {
     enabled: import.meta.env.VITE_NOTIFICATION_ENABLED === 'true',
     sound: import.meta.env.VITE_NOTIFICATION_SOUND === 'true',
-    highRiskThreshold: parseInt(import.meta.env.VITE_HIGH_RISK_THRESHOLD) || 75,
-    cooldown: parseInt(import.meta.env.VITE_NOTIFICATION_COOLDOWN) || 120000
+    highRiskThreshold: parseInt(import.meta.env.VITE_HIGH_RISK_THRESHOLD) || 75, // 75% threshold as requested
+    cooldown: parseInt(import.meta.env.VITE_NOTIFICATION_COOLDOWN) || 30000 // 30 seconds default
   },
 
   // Camera Configuration
@@ -48,14 +48,15 @@ export const config = {
     urls: {
       east: import.meta.env.VITE_CAMERA_EAST_URL || 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167914/1_znxt5x.mp4',
       west: import.meta.env.VITE_CAMERA_WEST_URL || 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167915/2_lrgtxq.mp4',
-      north: import.meta.env.VITE_CAMERA_NORTH_URL || 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167915/3_gk37sc.mp4'
+      north: import.meta.env.VITE_CAMERA_NORTH_URL || 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167915/3_gk37sc.mp4',
+      south: import.meta.env.VITE_CAMERA_SOUTH_URL || 'https://res.cloudinary.com/dyb6aumhm/video/upload/v1758167914/1_znxt5x.mp4'
     }
   },
 
   // Risk Assessment Settings
   risk: {
-    updateInterval: parseInt(import.meta.env.VITE_RISK_UPDATE_INTERVAL) || 5000,
-    forceHighChance: parseFloat(import.meta.env.VITE_RISK_FORCE_HIGH_CHANCE) || 0.2,
+    updateInterval: parseInt(import.meta.env.VITE_RISK_UPDATE_INTERVAL) || 5000, // 5 seconds as requested
+    forceHighChance: parseFloat(import.meta.env.VITE_RISK_FORCE_HIGH_CHANCE) || 0.1, // 10% chance for demo
     calculationMode: import.meta.env.VITE_RISK_CALCULATION_MODE || 'enhanced'
   },
 
