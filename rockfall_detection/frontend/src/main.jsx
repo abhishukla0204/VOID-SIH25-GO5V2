@@ -103,7 +103,12 @@ const darkTheme = createTheme({
 ReactDOM.createRoot(document.getElementById('root')).render(
   // Temporarily disable StrictMode in development to prevent WebSocket connection leaks
   // <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
       <ThemeProvider theme={darkTheme}>
         <CssBaseline />
         <App />

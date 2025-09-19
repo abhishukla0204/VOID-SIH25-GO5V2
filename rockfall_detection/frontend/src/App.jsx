@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { 
   AppBar, 
@@ -35,7 +35,8 @@ import {
   CheckCircle as CheckCircleIcon,
   Videocam as VideocamIcon,
   Terrain as TerrainIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  AccountCircle as AccountCircleIcon
 } from '@mui/icons-material'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -67,6 +68,36 @@ function App() {
     riskScore: 0,
     shouldTriggerNotification: false
   })
+  const [environmentalData, setEnvironmentalData] = useState({
+    rainfall: 0,
+    temperature: 0,
+    fractureDensity: 0,
+    seismicActivity: 0,
+    currentRisk: 0,
+    riskLevel: 'LOW',
+    riskScore: 0
+  })
+  
+  // Risk calculation refs
+  const lastNotifiedRisk = useRef(false)
+  const stableHighRiskData = useRef(null)
+  const isInitialLoad = useRef(true)
+  const lastEnvironmentalDataRef = useRef(null)
+
+  // Function to check if environmental data has changed significantly
+  const hasSignificantChange = useCallback((newData, oldData) => {
+    if (!oldData) return true
+    
+    const threshold = 0.5 // Only update if values change by more than 0.5
+    return (
+      Math.abs(newData.rainfall - oldData.rainfall) > threshold ||
+      Math.abs(newData.temperature - oldData.temperature) > threshold ||
+      Math.abs(newData.fractureDensity - oldData.fractureDensity) > threshold ||
+      Math.abs(newData.seismicActivity - oldData.seismicActivity) > threshold ||
+      Math.abs(newData.currentRisk - oldData.currentRisk) > threshold ||
+      newData.riskLevel !== oldData.riskLevel
+    )
+  }, [])
   
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
@@ -74,6 +105,114 @@ function App() {
   // Static connection status for showcase - no WebSocket needed
   const connectionStatus = 'Connected'
   const isConnected = true
+  
+  // Risk calculation logic - runs continuously regardless of current page
+  useEffect(() => {
+    const updateEnvironmentalData = () => {
+      // Generate new random values every time
+      const baseRainfall = 15 + Math.random() * 15
+      const baseTemp = 20 + Math.random() * 8
+      const baseFracture = 2.0 + Math.random() * 1.5
+      const baseSeismic = Math.random() * 2
+      
+      // Calculate new risk score
+      let riskScore = Math.min(1.0, (baseRainfall / 30 + baseFracture / 3.0 + baseSeismic / 3.5 + Math.random() * 0.1) / 3)
+      
+      // Force high risk scenario occasionally for demo
+      if (Math.random() < (import.meta.env.VITE_RISK_FORCE_HIGH_CHANCE || 0.1)) {
+        riskScore = 0.75 + Math.random() * 0.15
+        console.log('🔥 Forcing high risk scenario:', (riskScore * 100).toFixed(1) + '%')
+      }
+      
+      const riskPercentage = Math.round(riskScore * 100 * 10) / 10
+      const newRiskLevel = riskPercentage > 75 ? 'HIGH' : riskPercentage > 40 ? 'MEDIUM' : 'LOW'
+
+      let finalEnvironmentalData
+
+      // Check if we currently have stable high risk data stored
+      if (stableHighRiskData.current) {
+        // If we have stable data, we need consecutive low readings to exit high risk mode
+        if (riskPercentage <= 70) {  // Only exit when well below 75% to avoid oscillation
+          // Risk dropped significantly - clear stable data and use new values
+          stableHighRiskData.current = null
+          finalEnvironmentalData = {
+            rainfall: Math.round(baseRainfall * 10) / 10,
+            temperature: Math.round(baseTemp * 10) / 10,
+            fractureDensity: Math.round(baseFracture * 10) / 10,
+            seismicActivity: Math.round(baseSeismic * 10) / 10,
+            currentRisk: riskPercentage,
+            riskLevel: newRiskLevel,
+            riskScore: riskScore
+          }
+        } else {
+          // Keep using stable high risk data regardless of new calculated values
+          finalEnvironmentalData = stableHighRiskData.current
+        }
+      } else {
+        // No stable data stored
+        if (riskPercentage > 75) {
+          // Entering high risk for first time - store and freeze values
+          stableHighRiskData.current = {
+            rainfall: Math.round(baseRainfall * 10) / 10,
+            temperature: Math.round(baseTemp * 10) / 10,
+            fractureDensity: Math.round(baseFracture * 10) / 10,
+            seismicActivity: Math.round(baseSeismic * 10) / 10,
+            currentRisk: riskPercentage,
+            riskLevel: newRiskLevel,
+            riskScore: riskScore
+          }
+          finalEnvironmentalData = stableHighRiskData.current
+        } else {
+          // Normal operation below 75% - use dynamic values
+          finalEnvironmentalData = {
+            rainfall: Math.round(baseRainfall * 10) / 10,
+            temperature: Math.round(baseTemp * 10) / 10,
+            fractureDensity: Math.round(baseFracture * 10) / 10,
+            seismicActivity: Math.round(baseSeismic * 10) / 10,
+            currentRisk: riskPercentage,
+            riskLevel: newRiskLevel,
+            riskScore: riskScore
+          }
+        }
+      }
+
+      // Only update state if there are significant changes to prevent unnecessary re-renders
+      if (hasSignificantChange(finalEnvironmentalData, lastEnvironmentalDataRef.current)) {
+        setEnvironmentalData(finalEnvironmentalData)
+        lastEnvironmentalDataRef.current = finalEnvironmentalData
+      }
+      
+      // Don't trigger notifications on initial load
+      const shouldTrigger = !isInitialLoad.current && 
+                          finalEnvironmentalData.currentRisk > 75 && 
+                          !lastNotifiedRisk.current
+      
+      if (shouldTrigger) {
+        lastNotifiedRisk.current = true // Mark that we've notified
+      } else if (finalEnvironmentalData.currentRisk <= 70) { // Reset at 70% to match exit condition
+        lastNotifiedRisk.current = false // Reset when risk drops significantly below 75%
+      }
+      
+      // Mark that initial load is complete after first update
+      if (isInitialLoad.current) {
+        isInitialLoad.current = false
+      }
+      
+      // Always update current risk data for notifications (this doesn't cause re-renders of page components)
+      setCurrentRiskData({
+        currentRisk: finalEnvironmentalData.currentRisk,
+        riskLevel: finalEnvironmentalData.riskLevel,
+        riskScore: finalEnvironmentalData.riskScore,
+        shouldTriggerNotification: shouldTrigger
+      })
+    }
+    
+    updateEnvironmentalData()
+    // Increased interval to reduce DOM rebuilding - only update every 10 seconds instead of 5
+    const interval = setInterval(updateEnvironmentalData, import.meta.env.VITE_RISK_UPDATE_INTERVAL || 10000)
+    
+    return () => clearInterval(interval)
+  }, []) // Empty dependency array - runs once and continues
   
   // Simulate high risk scenarios for showcase using current risk data
   useEffect(() => {
@@ -345,15 +484,17 @@ function App() {
     </Box>
   )
   
+  // Memoized page props to prevent unnecessary re-renders
+  const pageProps = useMemo(() => ({
+    systemStatus,
+    connectionStatus,
+    highRiskCount,
+    environmentalData,
+    onRiskDataUpdate: setCurrentRiskData
+  }), [systemStatus, connectionStatus, highRiskCount, environmentalData])
+  
   // Render current page component
-  const renderCurrentPage = () => {
-    const pageProps = {
-      systemStatus,
-      connectionStatus,
-      highRiskCount,
-      onRiskDataUpdate: setCurrentRiskData
-    }
-    
+  const renderCurrentPage = useCallback(() => {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard {...pageProps} />
@@ -370,7 +511,7 @@ function App() {
       default:
         return <Dashboard {...pageProps} />
     }
-  }
+  }, [currentPage, pageProps])
   
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -400,7 +541,13 @@ function App() {
           
           <IconButton 
             color="inherit" 
-            sx={{ mr: 1 }}
+            sx={{ 
+              mr: 1,
+              backgroundColor: highRiskCount > 0 ? 'transparent' : '#10b981',
+              '&:hover': {
+                backgroundColor: highRiskCount > 0 ? 'rgba(255,255,255,0.1)' : '#059669'
+              }
+            }}
             onClick={handleNotificationClick}
           >
             <Badge 
@@ -415,23 +562,27 @@ function App() {
               }}
             >
               <NotificationsIcon sx={{ 
-                color: highRiskCount > 0 ? '#fbbf24' : 'inherit',
+                color: highRiskCount > 0 ? '#fbbf24' : 'white',
                 filter: highRiskCount > 0 ? 'drop-shadow(0 0 8px rgba(251, 191, 36, 0.6))' : 'none'
               }} />
             </Badge>
           </IconButton>
           
-          <Chip 
-            label={connectionStatus}
-            color={connectionStatus === 'Connected' ? 'success' : 'warning'}
-            variant="outlined"
-            size="small"
+          <IconButton 
+            color="inherit"
             sx={{ 
-              borderColor: 'rgba(255,255,255,0.3)',
-              color: 'white',
-              fontSize: '0.75rem'
+              ml: 1,
+              '&:hover': {
+                backgroundColor: 'rgba(255,255,255,0.1)'
+              }
             }}
-          />
+          >
+            <AccountCircleIcon sx={{ 
+              fontSize: 32,
+              color: 'white'
+            }} />
+          </IconButton>
+        
         </Toolbar>
       </AppBar>
 
@@ -449,24 +600,68 @@ function App() {
           horizontal: 'right',
         }}
       >
-        <Paper sx={{ width: 400, maxHeight: 500, overflow: 'auto' }}>
-          <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">Risk Notifications ({riskAlerts.length})</Typography>
+        <Paper sx={{ 
+          width: 400, 
+          maxHeight: 500, 
+          overflow: 'auto',
+          backgroundColor: '#1e293b',
+          color: '#f8fafc',
+          border: '1px solid #334155',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)'
+        }}>
+          <Box sx={{ 
+            p: 2, 
+            borderBottom: '1px solid #475569', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
+          }}>
+            <Typography variant="h6" sx={{ color: '#f1f5f9', fontWeight: 600 }}>
+              Risk Notifications ({riskAlerts.length})
+            </Typography>
             {riskAlerts.length > 0 && (
-              <Button size="small" onClick={clearAllNotifications} color="error">
+              <Button 
+                size="small" 
+                onClick={clearAllNotifications} 
+                sx={{
+                  color: '#ef4444',
+                  borderColor: '#ef4444',
+                  '&:hover': {
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderColor: '#f87171'
+                  }
+                }}
+                variant="outlined"
+              >
                 Clear All
               </Button>
             )}
           </Box>
           
           {riskAlerts.length === 0 ? (
-            <Box sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                No notifications yet
+            <Box sx={{ 
+              p: 4, 
+              textAlign: 'center',
+              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
+            }}>
+              <Typography variant="body2" sx={{ 
+                color: '#94a3b8',
+                fontSize: '0.9rem',
+                fontStyle: 'italic'
+              }}>
+                🔔 No notifications yet
+              </Typography>
+              <Typography variant="caption" sx={{ 
+                color: '#64748b',
+                display: 'block',
+                mt: 1
+              }}>
+                You'll be notified when risk levels exceed 75%
               </Typography>
             </Box>
           ) : (
-            <List sx={{ p: 0 }}>
+            <List sx={{ p: 0, backgroundColor: '#1e293b' }}>
               {riskAlerts.map((alert, index) => (
                 <motion.div
                   key={alert.id}
@@ -476,40 +671,104 @@ function App() {
                 >
                   <ListItem 
                     sx={{ 
-                      borderBottom: index < riskAlerts.length - 1 ? '1px solid #f0f0f0' : 'none',
+                      borderBottom: index < riskAlerts.length - 1 ? '1px solid rgba(71, 85, 105, 0.3)' : 'none',
+                      backgroundColor: 'transparent',
+                      transition: 'all 0.2s ease-in-out',
+                      position: 'relative',
+                      overflow: 'hidden',
                       '&:hover': { 
-                        backgroundColor: '#f5f5f5',
+                        backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                        '&::before': {
+                          content: '""',
+                          position: 'absolute',
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: '3px',
+                          backgroundColor: '#3b82f6',
+                          transform: 'scaleY(1)',
+                        },
                         '& .MuiTypography-root': {
                           color: 'inherit !important'
                         },
                         '& .MuiChip-root': {
-                          opacity: 1
+                          opacity: 1,
+                          transform: 'scale(1.05)'
+                        },
+                        '& .notification-close-btn': {
+                          opacity: 1,
+                          transform: 'scale(1.1)'
                         }
-                      }
+                      },
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: '3px',
+                        backgroundColor: '#3b82f6',
+                        transform: 'scaleY(0)',
+                        transition: 'transform 0.2s ease-in-out',
+                      },
+                      cursor: 'pointer'
                     }}
                   >
-                    <Box sx={{ flex: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Box sx={{ flex: 1, py: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                         <Chip 
                           label={alert.riskLevel} 
                           size="small" 
-                          color={alert.riskLevel === 'HIGH' ? 'error' : 'warning'}
+                          sx={{
+                            backgroundColor: alert.riskLevel === 'HIGH' ? '#ef4444' : '#f59e0b',
+                            color: 'white',
+                            fontWeight: 600,
+                            fontSize: '0.75rem',
+                            transition: 'transform 0.2s ease-in-out',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}
                         />
-                        <Typography variant="caption" sx={{ color: '#888888' }}>
+                        <Typography variant="caption" sx={{ 
+                          color: '#94a3b8',
+                          fontSize: '0.75rem',
+                          fontWeight: 500
+                        }}>
                           {alert.timestamp.toLocaleTimeString()}
                         </Typography>
                       </Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1a1a1a' }}>
-                        {alert.location}
+                      <Typography variant="subtitle2" sx={{ 
+                        fontWeight: 700, 
+                        color: '#f1f5f9',
+                        fontSize: '0.95rem',
+                        mb: 0.5
+                      }}>
+                        📍 {alert.location}
                       </Typography>
-                      <Typography variant="body2" sx={{ color: '#666666' }}>
-                        Risk: {(alert.riskScore * 100).toFixed(1)}% | {alert.type}
+                      <Typography variant="body2" sx={{ 
+                        color: '#cbd5e1',
+                        fontSize: '0.85rem',
+                        lineHeight: 1.4
+                      }}>
+                        🚨 Risk: <span style={{ 
+                          color: alert.riskLevel === 'HIGH' ? '#f87171' : '#fbbf24',
+                          fontWeight: 600 
+                        }}>{alert.currentRisk.toFixed(1)}%</span> | {alert.type}
                       </Typography>
                     </Box>
                     <IconButton 
                       size="small" 
                       onClick={() => removeNotification(alert.id)}
-                      sx={{ ml: 1 }}
+                      className="notification-close-btn"
+                      sx={{ 
+                        ml: 1,
+                        opacity: 0.7,
+                        transition: 'all 0.2s ease-in-out',
+                        color: '#94a3b8',
+                        '&:hover': {
+                          backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                          color: '#ef4444'
+                        }
+                      }}
                     >
                       <CloseIcon fontSize="small" />
                     </IconButton>
