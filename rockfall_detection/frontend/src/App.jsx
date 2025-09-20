@@ -49,6 +49,9 @@ import Settings from './pages/Settings'
 import LiveMonitoring from './pages/LiveMonitoring'
 import DEMAnalysis from './pages/DEMAnalysis'
 
+// Import chatbot component
+import RockfallChatbot from '../chatbot/RockfallChatbot'
+
 const drawerWidth = 280
 
 function App() {
@@ -76,6 +79,17 @@ function App() {
     currentRisk: 0,
     riskLevel: 'LOW',
     riskScore: 0
+  })
+  
+  // Chatbot ref for proactive alerts
+  const chatbotRef = useRef(null)
+  
+  // Mock camera feeds data for chatbot (in real app, this would come from LiveMonitoring)
+  const [cameraFeeds] = useState({
+    east: { name: 'East Camera', online: true, status: 'active', resolution: '1920x1080', fps: 30, detections: 2, recording: false },
+    west: { name: 'West Camera', online: true, status: 'active', resolution: '1920x1080', fps: 30, detections: 1, recording: false },
+    north: { name: 'North Camera', online: true, status: 'active', resolution: '1920x1080', fps: 30, detections: 3, recording: true },
+    south: { name: 'South Camera', online: false, status: 'offline', resolution: '1920x1080', fps: 0, detections: 0, recording: false }
   })
   
   // Risk calculation refs
@@ -285,6 +299,11 @@ function App() {
           color: '#374151'
         }
       })
+      
+      // Send proactive alert to chatbot
+      if (chatbotRef.current && chatbotRef.current.sendProactiveAlert) {
+        chatbotRef.current.sendProactiveAlert(randomScenario)
+      }
     }
     
     // Only simulate alerts when risk data indicates high risk
@@ -338,7 +357,7 @@ function App() {
       color: '#10b981'
     },
     {
-      text: 'Rock Detection',
+      text: 'Rockfall Detection',
       icon: <CameraIcon />,
       path: 'detection',
       color: '#8b5cf6'
@@ -844,6 +863,15 @@ function App() {
           </AnimatePresence>
         </Container>
       </Box>
+      
+      {/* Rockfall AI Chatbot */}
+      <RockfallChatbot
+        ref={chatbotRef}
+        environmentalData={environmentalData}
+        systemStatus={systemStatus}
+        riskAlerts={riskAlerts}
+        cameraFeeds={cameraFeeds}
+      />
     </Box>
   )
 }

@@ -339,7 +339,7 @@ const Detection = () => {
                 WebkitTextFillColor: 'transparent',
                 mb: 0.5
               }}>
-                🚁 Drone Rock Detection
+                🚁 Drone Rockfall Detection
               </Typography>
             </Box>
           </Stack>
@@ -521,7 +521,7 @@ const Detection = () => {
                       🚁 Drone Ready for Analysis
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Click the demo button to see AI-powered rock detection
+                      Click the demo button to see AI-powered rockfall detection
                     </Typography>
                   </Box>
                 )}
