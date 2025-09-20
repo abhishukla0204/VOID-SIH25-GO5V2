@@ -399,11 +399,11 @@ const LiveMonitoring = () => {
           </Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
             <Typography variant="caption" sx={{ color: '#94a3b8' }}>Detections:</Typography>
-            <Badge badgeContent={camera.detections} color="error">
+            {/* <Badge badgeContent={camera.detections} color="error"> */}
               <Typography variant="caption" sx={{ color: 'white' }}>
                 {camera.detections}
               </Typography>
-            </Badge>
+            {/* </Badge> */}
           </Box>
         </Stack>
 
@@ -671,13 +671,13 @@ const LiveMonitoring = () => {
         )}
       </AnimatePresence>
 
-      {/* Custom CSS for blinking animation */}
+      {/* Custom CSS for blinking animation
       <style jsx>{`
         @keyframes blink {
           0%, 50% { opacity: 1; }
           51%, 100% { opacity: 0.3; }
         }
-      `}</style>
+      `}</style> */}
     </Box>
   )
 }
