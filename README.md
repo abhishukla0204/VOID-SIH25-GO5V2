@@ -8,7 +8,7 @@ A sophisticated React-based frontend application for real-time rockfall detectio
 
 - **Real-time Risk Assessment** - Dynamic environmental monitoring with intelligent risk scoring
 - **AI-Powered Rock Detection** - Computer vision system for automated rockfall identification
-- **Live Monitoring Dashboard** - Multi-camera surveillance with real-time alerts
+- **Live Monitoring Dashboard** - Multi-camera surveillance with real-time alerts.
 - **DEM Analysis** - Digital Elevation Model processing for terrain assessment
 - **Interactive Notifications** - Smart alert system with risk-based escalation
 - **Responsive Design** - Mobile-friendly interface with Material-UI components
